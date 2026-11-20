@@ -1,0 +1,6 @@
+.pio/
+.vscode/ipch/
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+__pycache__/
+/include/local_credentials.h

@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PIO: Compilar",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\.platformio\\penv\\Scripts\\platformio.exe",
+      "args": ["run"],
+      "group": {"kind": "build", "isDefault": true},
+      "problemMatcher": []
+    },
+    {
+      "label": "PIO: Upload FS (SPIFFS)",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\.platformio\\penv\\Scripts\\platformio.exe",
+      "args": ["run", "--target", "uploadfs"],
+      "problemMatcher": []
+    },
+    {
+      "label": "PIO: Upload Firmware",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\.platformio\\penv\\Scripts\\platformio.exe",
+      "args": ["run", "--target", "upload"],
+      "problemMatcher": []
+    },
+    {
+      "label": "PIO: Upload Completo (FS + FW)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["PIO: Upload FS (SPIFFS)", "PIO: Upload Firmware"],
+      "problemMatcher": []
+    }
+  ]
+}

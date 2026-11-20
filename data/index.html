@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#146347">
+  <title>Controle da Arvore de Natal</title>
+  <style>
+    :root { color-scheme: light; --ink: #162e28; --muted: #52675f; --line: #d6e3dc; --green: #146347; --red: #ad2935; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; color: var(--ink); background: radial-gradient(at top right, #d5eade, transparent 65%), #f3f7f4; }
+    .shell { max-width: 1120px; margin: 24px auto; padding: 0 16px 32px; }
+    header { background: linear-gradient(125deg, #124e3b, #21815c); color: white; border-radius: 18px; padding: 26px; box-shadow: 0 10px 28px #163e2818; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.4rem, 4vw, 2rem); }
+    header p { margin: 0; opacity: .9; }
+    .tiles, .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tile, .card, .settings { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+    .tile strong { display: block; margin-top: 7px; overflow-wrap: anywhere; }
+    .muted, small { color: var(--muted); }
+    .card h2 { margin: 0; font-size: 1.2rem; overflow-wrap: anywhere; }
+    .heading, .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .heading { justify-content: space-between; margin-bottom: 14px; }
+    .pill { border-radius: 30px; background: #edf1ee; color: #4b5c53; padding: 6px 12px; font-size: .83rem; font-weight: 700; }
+    .pill.on { background: #ad2935; color: #fff; }
+    .pill.off { background: #146347; color: #fff; }
+    .mode { margin: 12px 0; min-height: 1.5em; font-size: .9rem; }
+    button, input, select { font: inherit; border: 1px solid #b9cdc0; border-radius: 8px; padding: 9px 11px; }
+    input, select { background: white; color: var(--ink); min-width: 0; max-width: 100%; }
+    button { cursor: pointer; color: var(--green); background: #f1f8f3; min-height: 42px; }
+    button.primary { color: white; border-color: var(--green); background: var(--green); }
+    button.danger { color: var(--red); background: #fff3f3; border-color: #e5b9bf; }
+    button[aria-pressed="true"] { outline: 2px solid var(--green); outline-offset: 2px; }
+    button[data-mode="on"] { color: #fff; background: var(--red); border-color: var(--red); }
+    button[data-mode="off"] { color: #fff; background: var(--green); border-color: var(--green); }
+    button[data-mode="on"][aria-pressed="true"] { outline-color: var(--red); }
+    button:hover { filter: brightness(.95); }
+    button:disabled { opacity: .5; cursor: wait; }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #b47713; outline-offset: 3px; }
+    summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+    label { display: grid; gap: 6px; font-size: .9rem; }
+    .name { margin: 8px 0 16px; }
+    .rule { background: #f6f9f6; padding: 12px; border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; }
+    .rule .row { margin: 8px 0; }
+    .check { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--green); }
+    .days { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .days label { background: white; border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+    .settings { margin-top: 16px; }
+    .settings h2 { font-size: 1.1rem; margin-top: 0; }
+    .settings form { margin: 14px 0; }
+    #message { position: sticky; top: 8px; z-index: 1; border-radius: 10px; padding: 12px; margin: 12px 0; background: #e3f4e8; border: 1px solid #94baa0; overflow-wrap: anywhere; }
+    #message.error, .warning { background: #fff0db; color: #754200; border: 1px solid #e7c893; }
+    .warning { padding: 12px; border-radius: 10px; margin-top: 16px; }
+    [hidden] { display: none !important; }
+    footer { font-size: .85rem; margin-top: 18px; line-height: 1.6; }
+    @media (max-width: 760px) { .grid, .tiles { grid-template-columns: 1fr; } .shell { margin-top: 12px; } header { padding: 20px; } }
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <h1>Controle da Arvore de Natal</h1>
+    <p>ESP32-C3 Super Mini · 4 reles independentes · v1.0.0</p>
+  </header>
+  <div id="message" role="status" aria-live="polite">Conectando ao ESP32...</div>
+  <section class="tiles" aria-label="Estado do controlador">
+    <div class="tile"><span class="muted">Relogio do ESP32</span><strong id="clock">--</strong><small id="clock-source">Aguardando sincronizacao</small></div>
+    <div class="tile"><span class="muted">Conexao</span><strong id="network">--</strong><small id="ip">--</small></div>
+    <div class="tile"><span class="muted">Programacao</span><strong>Semanal e mensal</strong><small>Ate 16 periodos por rele</small></div>
+  </section>
+  <div id="clock-warning" class="warning" hidden>Relogio invalido: o modo automatico permanece desligado. Sincronize com o navegador ou conecte o ESP32 a Internet para usar NTP.</div>
+  <div id="config-warning" class="warning" hidden>Falha na configuracao salva. O modo automatico esta bloqueado. Confira os quatro reles e salve uma configuracao valida.</div>
+  <div id="storage-warning" class="warning" hidden>Memoria NVS indisponivel. Nao e possivel salvar agendas nem senha. Verifique o monitor serial.</div>
+  <div id="lcd-warning" class="warning" hidden></div>
+  <div id="ota-warning" class="warning" hidden></div>
+  <section id="relays" class="grid" aria-label="Controle dos reles"></section>
+  <section class="settings">
+    <h2>Relogio e acesso</h2>
+    <p class="muted">O navegador envia a hora UTC; o fuso abaixo determina os horarios das agendas.</p>
+    <div class="row"><button id="sync" disabled>Usar hora deste navegador</button></div>
+    <form id="timezone" class="row">
+      <label>Fuso em minutos em relacao a UTC
+        <input id="offset" type="number" min="-720" max="840" step="1" value="-180" required>
+      </label>
+      <button class="primary" disabled>Salvar fuso</button>
+      <small>Brasilia: -180 · Manaus: -240 · Rio Branco: -300</small>
+    </form>
+    <p><small>Acesso Web: usuario admin e senha configurada no firmware. Use somente em rede local confiavel.
+      A senha OTA LAN continua separada e aparece no monitor serial.</small></p>
+  </section>
+  <section class="settings">
+    <h2>Atualizacao OTA</h2>
+    <p>Atualize firmware ou pagina web (SPIFFS) sem cabo, na mesma rede Wi-Fi.</p>
+    <p><a href="/update">Abrir atualizacao OTA</a> - use admin e a senha do painel.</p>
+    <small>Durante a gravacao, os quatro reles ficam desligados e bloqueados ate reiniciar.
+      OTA LAN / ArduinoOTA: arvore-natal.local, porta 3232; senha separada no monitor serial.</small>
+  </section>
+  <section class="settings">
+    <h2>Diagnostico e eventos</h2>
+    <p><a href="/diag">Abrir diagnostico do ESP32 e historico recente</a></p>
+    <small>Padroes adaptados do Alarme ESP32 v1.6.9 md4, preservando os quatro circuitos independentes.</small>
+  </section>
+  <footer class="muted">
+    Automatico segue as agendas. Ligar e Desligar fixam o estado ate selecionar Automatico ou reiniciar.
+    Ao reiniciar, todos voltam ao Automatico; horarios e nomes ficam salvos.<br>
+    Periodos sobrepostos se somam: o rele permanece ligado enquanto qualquer periodo estiver ativo.
+    O dia selecionado e sempre o dia em que o periodo comeca. Sem periodo ativo, o rele fica desligado.<br>
+    Uso somente em rede local confiavel. Nao exponha este painel a Internet.
+  </footer>
+</main>
+<template id="relay-template">
+  <article class="card">
+    <div class="heading"><h2></h2><span class="pill state">--</span></div>
+    <small class="pin"></small>
+    <div class="mode"></div>
+    <div class="row commands">
+      <button type="button" data-mode="auto">Automatico</button>
+      <button type="button" data-mode="on" class="primary">Ligar</button>
+      <button type="button" data-mode="off" class="danger">Desligar</button>
+    </div>
+    <details>
+      <summary>Nome e agendamentos</summary>
+      <form class="relay-form">
+        <label class="name">Nome do circuito<input name="relay-name" maxlength="48" required></label>
+        <div class="rules"></div>
+        <div class="row">
+          <button type="button" class="add">Adicionar periodo</button>
+          <button type="submit" class="primary save">Salvar este rele</button>
+        </div>
+        <p><small>Horarios diferentes; fim menor que inicio atravessa a meia-noite. Dias 29, 30 e 31 so iniciam em meses que os possuem. Sem prioridade mensal sobre semanal.</small></p>
+      </form>
+    </details>
+  </article>
+</template>
+<template id="rule-template">
+  <div class="rule">
+    <div class="row">
+      <label class="check"><input type="checkbox" class="enabled" checked>Ativo</label>
+      <label>Repeticao<select class="kind"><option value="weekly">Semanal</option><option value="monthly">Mensal</option></select></label>
+      <button type="button" class="remove danger">Remover</button>
+    </div>
+    <div class="days"></div>
+    <label class="month-label" hidden>Dia do mes<input class="month-day" type="number" min="1" max="31" value="1" required></label>
+    <div class="row">
+      <label>Ligar<input class="on-time" type="time" value="18:00" required></label>
+      <label>Desligar<input class="off-time" type="time" value="23:00" required></label>
+    </div>
+  </div>
+</template>
+<script>
+'use strict';
+const $ = (selector, root = document) => root.querySelector(selector);
+const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+let config;
+let saving = false;
+let connected = false;
+let lastStatus;
+let otaLocked = false;
+let clockReference;
+const clockFormatter = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+});
+
+function tickClock() {
+  if (!clockReference || !connected) return;
+  const elapsed = performance.now() - clockReference.receivedAt;
+  if (elapsed > 15000) {
+    $('#clock').textContent = 'Aguardando ESP32';
+    return;
+  }
+  const localTime = new Date(clockReference.epoch * 1000 +
+    clockReference.offset * 60000 + elapsed);
+  $('#clock').textContent = clockFormatter.format(localTime);
+}
+setInterval(tickClock, 250);
+
+function message(text, error = false) {
+  const box = $('#message');
+  box.textContent = text;
+  box.classList.toggle('error', error);
+}
+
+async function api(path, data) {
+  const response = await fetch(path, {
+    method: data === undefined ? 'GET' : 'POST',
+    headers: data === undefined ? {} : {'Content-Type': 'application/json'},
+    body: data === undefined ? undefined : JSON.stringify(data),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!response.ok) {
+    if (response.status === 401) throw new Error('Login necessario. Recarregue a pagina e informe usuario admin e sua senha.');
+    const text = await response.text();
+    let result;
+    try { result = JSON.parse(text); } catch { throw new Error(`HTTP ${response.status}: resposta inesperada do ESP32.`); }
+    throw new Error(result.error || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+function updateButtons() {
+  document.querySelectorAll('button').forEach(button => { button.disabled = !connected || saving || otaLocked; });
+  document.querySelectorAll('.card').forEach(card => {
+    $('.add', card).disabled = !connected || saving || otaLocked || card.querySelectorAll('.rule').length >= 16;
+  });
+}
+
+function appendRule(card, rule = {enabled: true, kind: 'weekly', days: 127, monthDay: 1, on: '18:00', off: '23:00'}) {
+  const element = $('#rule-template').content.firstElementChild.cloneNode(true);
+  $('.enabled', element).checked = rule.enabled;
+  $('.kind', element).value = rule.kind;
+  $('.month-day', element).value = rule.monthDay;
+  $('.on-time', element).value = rule.on;
+  $('.off-time', element).value = rule.off;
+  dayNames.forEach((name, index) => {
+    const label = document.createElement('label');
+    label.className = 'check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = index;
+    input.checked = Boolean(rule.days & (1 << index));
+    label.append(input, document.createTextNode(name));
+    $('.days', element).append(label);
+  });
+  const toggleKind = () => {
+    const monthly = $('.kind', element).value === 'monthly';
+    $('.days', element).hidden = monthly;
+    $('.month-label', element).hidden = !monthly;
+  };
+  $('.kind', element).addEventListener('change', toggleKind);
+  $('.remove', element).addEventListener('click', () => { element.remove(); updateButtons(); });
+  $('.rules', card).append(element);
+  toggleKind();
+  updateButtons();
+}
+
+function readCard(card) {
+  const name = $('[name="relay-name"]', card).value.trim();
+  if (!name || new TextEncoder().encode(name).length > 48) throw new Error('Nome deve ter de 1 a 48 bytes (acentos ocupam mais de um byte).');
+  const rules = [...card.querySelectorAll('.rule')].map(element => {
+    const kind = $('.kind', element).value;
+    const days = [...element.querySelectorAll('.days input:checked')].reduce((mask, input) => mask | (1 << Number(input.value)), 0);
+    const monthDay = Number($('.month-day', element).value);
+    const on = $('.on-time', element).value;
+    const off = $('.off-time', element).value;
+    if ((kind === 'weekly' && days === 0) || !Number.isInteger(monthDay) || monthDay < 1 || monthDay > 31 ||
+        !/^\d{2}:\d{2}$/.test(on) || !/^\d{2}:\d{2}$/.test(off) || on === off) {
+      throw new Error('Confira dias, dia do mes e horarios. Ligar e desligar devem ser diferentes.');
+    }
+    return {enabled: $('.enabled', element).checked, kind, days, monthDay, on, off};
+  });
+  return {name, rules};
+}
+
+async function saveConfiguration(candidate) {
+  if (saving) throw new Error('Aguarde a gravacao em andamento.');
+  saving = true;
+  updateButtons();
+  try {
+    await api('/api/config', candidate);
+    config = candidate;
+    message('Configuracao salva no ESP32. Controle manual, se ativo, permanece ate selecionar Automatico.');
+    if (lastStatus) renderStatus(lastStatus);
+  } finally {
+    saving = false;
+    updateButtons();
+  }
+}
+
+function renderCards() {
+  config.relays.forEach((relay, index) => {
+    const card = $('#relay-template').content.firstElementChild.cloneNode(true);
+    card.dataset.id = index;
+    $('h2', card).textContent = relay.name;
+    $('[name="relay-name"]', card).value = relay.name;
+    $('.pin', card).textContent = `CH${index + 1} - aguardando GPIO`;
+    $('.add', card).addEventListener('click', () => appendRule(card));
+    $('.relay-form', card).addEventListener('submit', async event => {
+      event.preventDefault();
+      try {
+        const candidate = structuredClone(config);
+        candidate.relays[index] = readCard(card);
+        await saveConfiguration(candidate);
+        $('h2', card).textContent = config.relays[index].name;
+      } catch (error) { message(error.message, true); }
+    });
+    card.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await api('/api/mode', {id: index, mode: button.dataset.mode});
+        message(button.dataset.mode === 'auto' ? `CH${index + 1}: seguindo a agenda.` : `CH${index + 1}: estado manual fixo; selecione Automatico para voltar a agenda.`);
+        await refreshStatus();
+      } catch (error) { message(error.message, true); }
+      finally { updateButtons(); }
+    }));
+    $('#relays').append(card);
+    relay.rules.forEach(rule => appendRule(card, rule));
+  });
+  updateButtons();
+}
+
+function renderStatus(status) {
+  otaLocked = Boolean(status.otaLocked);
+  $('#ota-warning').hidden = !otaLocked;
+  $('#ota-warning').textContent = status.otaError ?
+    `Falha OTA: ${status.otaError}. Reles bloqueados. Abra Atualizacao OTA para tentar novamente ou reiniciar.` :
+    `Atualizacao OTA: ${status.otaProgress || 0}%. Reles bloqueados ate reiniciar.`;
+  clockReference = status.clockValid && Number.isFinite(status.epoch) ? {
+    epoch: status.epoch, offset: status.utcOffset, receivedAt: performance.now()
+  } : undefined;
+  $('#clock').textContent = status.clockValid ? status.time : 'Horario nao sincronizado';
+  tickClock();
+  $('#clock-source').textContent = status.clockSource;
+  $('#network').textContent = status.network;
+  $('#ip').textContent = status.ip;
+  $('#clock-warning').hidden = status.clockValid;
+  $('#config-warning').hidden = status.configHealthy;
+  $('#storage-warning').hidden = status.storageReady;
+  $('#lcd-warning').hidden = status.lcdReady;
+  $('#lcd-warning').textContent = `LCD I2C: ${status.lcdDiagnostic}. Confira a ligacao de SDA/SCL e a alimentacao. O controle web continua disponivel.`;
+  status.relays.forEach(relay => {
+    const card = $(`.card[data-id="${relay.id}"]`);
+    if (!card) return;
+    $('.pin', card).textContent = `CH${relay.id + 1} - GPIO ${relay.gpio}`;
+    const state = $('.state', card);
+    state.textContent = relay.on ? 'LIGADO' : 'DESLIGADO';
+    state.classList.toggle('on', relay.on);
+    state.classList.toggle('off', !relay.on);
+    $('.mode', card).textContent = relay.mode === 'auto' ? 'Modo automatico' : 'Modo manual fixo - agenda suspensa';
+    card.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === relay.mode)));
+  });
+}
+
+async function refreshStatus() {
+  const status = await api('/api/status');
+  lastStatus = status;
+  renderStatus(status);
+  connected = true;
+  tickClock();
+  updateButtons();
+}
+
+$('#sync').addEventListener('click', async () => {
+  try {
+    await api('/api/time', {epoch: Math.floor(Date.now() / 1000)});
+    await refreshStatus();
+    message('Relogio sincronizado com o navegador. Confira o fuso configurado.');
+  } catch (error) { message(error.message, true); }
+});
+$('#timezone').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    const offset = Number($('#offset').value);
+    if (!Number.isInteger(offset) || offset < -720 || offset > 840) throw new Error('Fuso invalido.');
+    const candidate = structuredClone(config);
+    candidate.utcOffset = offset;
+    await saveConfiguration(candidate);
+    await refreshStatus();
+  } catch (error) { message(error.message, true); }
+});
+let pollTimer;
+async function poll() {
+  try {
+    const wasConnected = connected;
+    await refreshStatus();
+    if (!wasConnected) message('Conexao restabelecida. Estados atualizados.');
+  } catch (error) {
+    connected = false;
+    updateButtons();
+    $('#clock').textContent = 'Sem conexao';
+    document.querySelectorAll('.state').forEach(element => { element.textContent = 'SEM CONEXAO'; element.classList.remove('on', 'off'); });
+    message(`Falha de comunicacao: ${error.message} Os estados exibidos nao estao atualizados.`, true);
+  }
+  pollTimer = setTimeout(poll, 3000);
+}
+
+async function initialize() {
+  try {
+    config = await api('/api/config');
+    $('#offset').value = config.utcOffset;
+    renderCards();
+    await refreshStatus();
+    message('Painel conectado. Configure e salve cada rele individualmente.');
+    pollTimer = setTimeout(poll, 3000);
+  } catch (error) {
+    connected = false;
+    updateButtons();
+    message(`Nao foi possivel carregar o painel: ${error.message} Recarregue a pagina para tentar novamente.`, true);
+  }
+}
+initialize();
+</script>
+</body>
+</html>
